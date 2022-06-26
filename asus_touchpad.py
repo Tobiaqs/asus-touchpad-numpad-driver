@@ -144,20 +144,23 @@ if percentage_key != EV_KEY.KEY_5:
 udev = dev.create_uinput_device()
 
 
-# Brightness 31: Low, 24: Half, 1: Full
+# High res
+# BRIGHT_VAL = [hex(val) for val in [70, 69, 68, 67, 66, 65, 0]]
 
-BRIGHT_VAL = [hex(val) for val in [31, 24, 1]]
+# Low res
+BRIGHT_VAL = [hex(val) for val in [70, 68, 66, 0]]
 
 
 def activate_numlock(brightness):
-    numpad_cmd = "i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 " + BRIGHT_VAL[brightness] + " 0xad"
+    subprocess.call("i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 0x01 0xad", shell=True)
+    sleep(0.1)
+    subprocess.call("i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 " + BRIGHT_VAL[brightness] + " 0xad", shell=True)
     events = [
         InputEvent(EV_KEY.KEY_NUMLOCK, 1),
         InputEvent(EV_SYN.SYN_REPORT, 0)
     ]
     udev.send_events(events)
     d_t.grab()
-    subprocess.call(numpad_cmd, shell=True)
 
 
 def deactivate_numlock():
@@ -184,13 +187,20 @@ def launch_calculator():
         pass
 
 
-# status 1 = min bright
-# status 2 = middle bright
-# status 3 = max bright
 def change_brightness(brightness):
+    # If it was previously disabled, turn on LED first (brightness setting should already be synced)
+    if BRIGHT_VAL[brightness] == "0x0":
+        subprocess.call("i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 0x01 0xad", shell=True)
+        sleep(0.1)
+
     brightness = (brightness + 1) % len(BRIGHT_VAL)
-    numpad_cmd = "i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 " + BRIGHT_VAL[brightness] + " 0xad"
-    subprocess.call(numpad_cmd, shell=True)
+    subprocess.call("i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 " + BRIGHT_VAL[brightness] + " 0xad", shell=True)
+
+    if BRIGHT_VAL[brightness] == "0x0":
+        # If next value needs the LCD on, pre-set the brightness
+        sleep(0.1)
+        subprocess.call("i2ctransfer -f -y " + device_id + " w13@0x15 0x05 0x00 0x3d 0x03 0x06 0x00 0x07 0x00 0x0d 0x14 0x03 " + BRIGHT_VAL[(brightness + 1) % len(BRIGHT_VAL)] + " 0xad", shell=True)
+
     return brightness
 
 
